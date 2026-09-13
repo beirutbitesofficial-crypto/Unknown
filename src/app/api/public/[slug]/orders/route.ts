@@ -1,0 +1,21 @@
+import { NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { withPublicTenantTransaction } from "@/server/tenancy/public";
+
+const schema = z.object({ customerName: z.string().trim().min(2).max(100), customerPhone: z.string().trim().min(6).max(30), fulfillment: z.enum(["DINE_IN", "PICKUP", "DELIVERY"]), address: z.string().trim().max(300).optional(), notes: z.string().trim().max(800).optional(), items: z.array(z.object({ productId: z.string().cuid(), quantity: z.string().regex(/^\d+(\.\d{1,3})?$/) })).min(1).max(100) });
+export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  try {
+    const { slug } = await params; const parsed = schema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: "INVALID_INPUT", issues: parsed.error.issues }, { status: 422 });
+    const website = await prisma.businessWebsite.findUnique({ where: { slug }, select: { id: true, businessId: true, status: true } }); if (!website || website.status !== "PUBLISHED") return NextResponse.json({ error: "SITE_NOT_FOUND" }, { status: 404 });
+    const result = await withPublicTenantTransaction({ businessId: website.businessId, serializable: true, fn: async (tx) => {
+      const addon = await tx.businessAddon.findFirst({ where: { businessId: website.businessId, status: { in: ["ACTIVE", "TRIALING", "GRACE_PERIOD"] }, addonPlan: { featureCode: { in: ["onlineOrdering", "onlineStore"] } } }, select: { id: true } }); if (!addon) throw new Error("ONLINE_ORDERING_NOT_ENABLED");
+      const ids = [...new Set(parsed.data.items.map((x) => x.productId))]; const products = await tx.product.findMany({ where: { businessId: website.businessId, id: { in: ids }, isActive: true, isPublishedOnline: true, deletedAt: null } }); if (products.length !== ids.length) throw new Error("PRODUCT_NOT_AVAILABLE"); const byId = new Map(products.map((p) => [p.id, p]));
+      const currencies = new Set(products.map((p) => p.currency)); if (currencies.size !== 1) throw new Error("MIXED_CURRENCIES_NOT_SUPPORTED"); const currency = products[0].currency; let subtotal = new Prisma.Decimal(0); const lines = parsed.data.items.map((item) => { const product = byId.get(item.productId)!; const quantity = new Prisma.Decimal(item.quantity); if (product.type === "PRODUCT" && product.stockQuantity !== null && product.stockQuantity.lt(quantity)) throw new Error(`INSUFFICIENT_STOCK:${product.name}`); const lineTotal = product.sellingPrice.mul(quantity); subtotal = subtotal.add(lineTotal); return { product, quantity, lineTotal }; });
+      let customer = await tx.customer.findFirst({ where: { businessId: website.businessId, phone: parsed.data.customerPhone, deletedAt: null }, select: { id: true } }); if (!customer) customer = await tx.customer.create({ data: { businessId: website.businessId, name: parsed.data.customerName, phone: parsed.data.customerPhone }, select: { id: true } });
+      const orderNumber = `WEB-${Date.now()}-${crypto.randomUUID().slice(0, 5).toUpperCase()}`; const order = await tx.onlineOrder.create({ data: { businessId: website.businessId, websiteId: website.id, customerId: customer.id, orderNumber, fulfillment: parsed.data.fulfillment, currency, subtotal, total: subtotal, customerName: parsed.data.customerName, customerPhone: parsed.data.customerPhone, address: parsed.data.address, notes: parsed.data.notes, items: { create: lines.map(({ product, quantity, lineTotal }) => ({ productId: product.id, itemNameSnapshot: product.name, quantity, unitPrice: product.sellingPrice, lineTotal })) } } });
+      await tx.notification.create({ data: { businessId: website.businessId, type: "SYSTEM", title: "New online order", body: `${parsed.data.customerName} placed ${orderNumber}.`, data: { onlineOrderId: order.id } } }); return { orderId: order.id, orderNumber };
+    }}); return NextResponse.json(result, { status: 201 });
+  } catch (error) { return NextResponse.json({ error: "ORDER_FAILED", message: error instanceof Error ? error.message : "Unable to place order" }, { status: 400 }); }
+}
