@@ -9,65 +9,35 @@ const prisma = new PrismaClient({ adapter });
 
 const plans = [
   {
-    code: "STARTER",
-    name: "Starter",
+    code: "CORE",
+    name: "Business OS",
+    description: "Complete core business management subscription. Industry-specific public modules are sold separately as add-ons.",
     monthlyPriceUsd: 10,
     sortOrder: 10,
     featureFlags: {
       sales: true,
       customers: true,
-      expenses: true,
-      basicReports: true,
-      inventory: false,
-      debts: false,
-      suppliers: false,
-      advancedReports: false,
-      whatsappTools: false,
-      advancedPermissions: false
-    },
-    limits: { users: 1 }
-  },
-  {
-    code: "PRO",
-    name: "Pro",
-    monthlyPriceUsd: 20,
-    sortOrder: 20,
-    featureFlags: {
-      sales: true,
-      customers: true,
+      crm: true,
       expenses: true,
       basicReports: true,
       inventory: true,
       debts: true,
       suppliers: true,
-      advancedReports: true,
-      whatsappTools: true,
-      advancedPermissions: false
-    },
-    limits: { users: 6 }
-  },
-  {
-    code: "BUSINESS",
-    name: "Business",
-    monthlyPriceUsd: 35,
-    sortOrder: 30,
-    featureFlags: {
-      sales: true,
-      customers: true,
-      expenses: true,
-      basicReports: true,
-      inventory: true,
-      debts: true,
-      suppliers: true,
+      purchases: true,
+      accounting: true,
       advancedReports: true,
       whatsappTools: true,
       advancedPermissions: true,
-      prioritySupport: true
+      employees: true,
+      hr: true,
+      projects: true,
+      pos: true,
+      automations: true,
+      documents: true
     },
-    limits: { users: 25 }
+    limits: { users: 25, branches: 10 }
   }
 ] as const;
-
 
 const addons = [
   { code: "DIGITAL_MENU", name: "Digital Menu", description: "Public QR menu with Arabic/English support.", monthlyPriceUsd: 5, featureCode: "digitalMenu", applicableCategories: ["restaurant", "cafe", "bakery"], sortOrder: 10 },
@@ -95,12 +65,32 @@ async function main() {
       create: plan,
       update: {
         name: plan.name,
+        description: plan.description,
         monthlyPriceUsd: plan.monthlyPriceUsd,
         sortOrder: plan.sortOrder,
         featureFlags: plan.featureFlags,
         limits: plan.limits,
         isActive: true
       }
+    });
+  }
+
+  // The product now has one base subscription only. Preserve old rows for
+  // financial/history integrity, but stop offering them and migrate tenants.
+  const corePlan = await prisma.subscriptionPlan.findUniqueOrThrow({ where: { code: "CORE" } });
+  const legacyPlans = await prisma.subscriptionPlan.findMany({
+    where: { code: { in: ["STARTER", "PRO", "BUSINESS"] } },
+    select: { id: true }
+  });
+  if (legacyPlans.length) {
+    const legacyIds = legacyPlans.map((plan) => plan.id);
+    await prisma.subscription.updateMany({
+      where: { planId: { in: legacyIds } },
+      data: { planId: corePlan.id }
+    });
+    await prisma.subscriptionPlan.updateMany({
+      where: { id: { in: legacyIds } },
+      data: { isActive: false }
     });
   }
 
