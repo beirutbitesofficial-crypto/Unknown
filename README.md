@@ -11,7 +11,7 @@ This repository contains the Phase 1 architecture and a substantial Phase 2 foun
 - signed signup-to-business provisioning flow;
 - tenant context + RBAC;
 - PostgreSQL RLS policy script;
-- Starter/Pro/Business plan seed data;
+- one $10/month Business OS subscription with optional paid add-ons;
 - provider-neutral billing interface;
 - transactional sale service (payments, debt, stock, invoice, ledger, audit);
 - Arabic/English document direction and dictionaries;
@@ -27,7 +27,7 @@ The remaining CRUD/reporting/admin/payment-provider screens are intentionally tr
 3. Install dependencies: `npm install`.
 4. Generate client: `npm run db:generate`.
 5. Create migration: `npm run db:migrate -- --name init`.
-6. Seed global permissions/plans: `npm run db:seed`.
+6. Seed global permissions, the $10 core plan and add-ons: `npm run db:seed`.
 7. Apply `prisma/rls.sql` with the migration/table-owner database role.
 8. Run the application with the non-owner runtime `DATABASE_URL`: `npm run dev`.
 
@@ -45,3 +45,17 @@ See `PROJECT_STATUS.md` for the exact implementation boundary and `DEPLOYMENT.md
 
 ## Vertical add-ons
 The same tenant workspace can activate public-facing modules without a separate application: Digital Menu, Online Ordering, Online Store, Online Booking and Business Website. The current implementation includes public catalog/order routes, clinic/barber-style booking resources and availability, website templates, add-on pricing, and a manual Whish payment-verification flow. See `ARCHITECTURE.md` and `PROJECT_STATUS.md` for boundaries and launch status.
+
+
+## Commercial pricing
+
+The commercial model is intentionally simple:
+
+- **Business OS:** $10/month per business workspace after a 14-day trial.
+- **Digital Menu:** +$5/month.
+- **Online Ordering:** +$10/month.
+- **Online Store:** +$15/month.
+- **Online Booking:** +$8/month.
+- **Business Website:** +$10/month.
+
+There are no Starter/Pro/Business tiers. Core ERP features live in the single base subscription; vertical public-facing services are optional add-ons.
