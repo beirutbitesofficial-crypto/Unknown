@@ -3,7 +3,7 @@ name: Import project source
 on:
   push:
     paths:
-      - ".project-upload/project-src.tar.xz"
+      - ".project-upload/chunk-*"
 
 permissions:
   contents: write
@@ -17,14 +17,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract project
+      - name: Reassemble and extract project
         shell: bash
         run: |
-          if [ ! -f .project-upload/project-src.tar.xz ]; then
-            echo "No upload archive present; nothing to do."
+          shopt -s nullglob
+          chunks=(.project-upload/chunk-*)
+          if [ ${#chunks[@]} -eq 0 ]; then
+            echo "No upload chunks present; nothing to do."
             exit 0
           fi
-          tar -xJf .project-upload/project-src.tar.xz
+          cat "${chunks[@]}" > /tmp/project-src.tar.xz
+          xz -t /tmp/project-src.tar.xz
+          tar -xJf /tmp/project-src.tar.xz
           rm -rf .project-upload
 
       - name: Commit imported source
