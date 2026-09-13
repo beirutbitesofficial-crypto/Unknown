@@ -3,7 +3,7 @@ import { withTenantTransaction } from "@/server/tenancy/transaction";
 import type { BusinessContext } from "@/server/tenancy/context";
 import type { CreateSaleInput } from "@/lib/validation/sale";
 
-const D = (value: Prisma.Decimal.Value) => new Prisma.Decimal(value);
+const D = (value: Prisma.Decimal | string | number) => new Prisma.Decimal(value);
 
 function convertCurrency(
   amount: Prisma.Decimal,
