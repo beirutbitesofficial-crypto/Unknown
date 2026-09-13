@@ -1,0 +1,41 @@
+name: Import project source
+
+on:
+  push:
+    paths:
+      - ".project-upload/project-src.tar.xz"
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract project
+        shell: bash
+        run: |
+          if [ ! -f .project-upload/project-src.tar.xz ]; then
+            echo "No upload archive present; nothing to do."
+            exit 0
+          fi
+          tar -xJf .project-upload/project-src.tar.xz
+          rm -rf .project-upload
+
+      - name: Commit imported source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "feat: import complete SaaS source"
+          git push
