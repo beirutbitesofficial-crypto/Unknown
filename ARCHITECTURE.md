@@ -52,7 +52,7 @@ Signup is intentionally split:
 2. Account creation goes directly through Better Auth, preserving its rate-limited client endpoint.
 3. Email verification is required.
 4. After the first verified sign-in, `ensureBusinessForCurrentUser()` provisions the business once, transactionally.
-5. Provisioning creates settings, a Starter trial, system roles, permissions and default expense categories.
+5. Provisioning creates settings, a 14-day Business OS trial, system roles, permissions and default expense categories.
 
 Provisioning is idempotent: an existing active membership wins over creating a second tenant.
 
@@ -115,7 +115,7 @@ It stores principal, amount paid, remaining balance, currency, due date and stat
 
 ## 12. Subscriptions
 
-Plans are database records. Feature flags and numeric limits are JSON so pricing/packaging can evolve without schema migrations for every commercial change.
+The commercial base is one `Business OS` subscription at $10/month. Feature flags and numeric limits remain data-driven so packaging can evolve without schema migrations, while industry-specific public modules are sold as optional add-ons.
 
 `BillingProvider` is a provider-neutral contract. Vendor SDKs must live only in provider adapters. Domain subscription state (`TRIALING`, `ACTIVE`, `GRACE_PERIOD`, etc.) never depends on Stripe/PayPal/another provider's enums.
 
