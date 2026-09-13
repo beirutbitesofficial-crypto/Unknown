@@ -70,8 +70,8 @@ export async function provisionBusinessForUser(input: {
       });
     }
 
-    const plan = await tx.subscriptionPlan.findUnique({ where: { code: "STARTER" } });
-    if (!plan) throw new Error("Subscription plans are not seeded. Run db:seed first.");
+    const plan = await tx.subscriptionPlan.findUnique({ where: { code: "CORE" } });
+    if (!plan) throw new Error("Core subscription plan is not seeded. Run db:seed first.");
 
     await tx.user.update({
       where: { id: input.userId },
