@@ -71,7 +71,7 @@ export function SignupForm({ locale }: { locale: "ar" | "en" }) {
         <div><Label>{ar ? "العملة الأساسية" : "Default currency"}</Label><Select name="defaultCurrency" defaultValue="USD"><option value="USD">USD</option><option value="LBP">LBP</option></Select></div>
       </div>
       {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-      <Button className="w-full" type="submit" disabled={busy}>{busy ? (ar ? "جارٍ إنشاء الحساب…" : "Creating account…") : (ar ? "إنشاء حساب" : "Create account")}</Button>
+      <Button className="w-full" type="submit" disabled={busy}>{busy ? (ar ? "جارٍ إنشاء الحساب…" : "Creating account…") : (ar ? "إنشاء حساب" : "Create account")}</Button>\n      <p className="text-center text-xs leading-5 text-slate-500">{ar ? "تجربة مجانية 14 يوم، بعدها 10$ بالشهر. الخدمات الإضافية اختيارية وتتحاسب بشكل منفصل." : "14-day free trial, then $10/month. Optional add-ons are billed separately."}</p>
       <p className="text-center text-sm text-slate-500">{ar ? "عندك حساب؟" : "Already have an account?"} <Link className="font-semibold text-slate-950" href="/login">{ar ? "سجّل دخول" : "Sign in"}</Link></p>
     </form>
   );
