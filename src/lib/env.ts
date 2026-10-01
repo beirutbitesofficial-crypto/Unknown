@@ -15,12 +15,7 @@ const envSchema = z.object({
   EMAIL_SMTP_PASS: z.string().optional(),
   WHISH_MERCHANT_RECIPIENT: z.string().optional(),
   WHISH_PAY_API_URL: z.preprocess((value) => value === "" ? undefined : value, z.url().optional()),
-  WHISH_PAY_API_KEY: z.string().optional(),
-  WHATSAPP_CLOUD_PHONE_NUMBER_ID: z.preprocess((value) => value === "" ? undefined : value, z.string().optional()),
-  WHATSAPP_CLOUD_ACCESS_TOKEN: z.preprocess((value) => value === "" ? undefined : value, z.string().optional()),
-  WHATSAPP_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v21.0"),
-  WHATSAPP_BOOKING_TEMPLATE: z.preprocess((value) => value === "" ? undefined : value, z.string().optional()),
-  WHATSAPP_BOOKING_TEMPLATE_LANG: z.string().min(2).default("en")
+  WHISH_PAY_API_KEY: z.string().optional()
 });
 
 export const env = envSchema.parse(process.env);

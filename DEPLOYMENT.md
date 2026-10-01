@@ -32,12 +32,5 @@
 For the implemented manual Whish transfer flow, set `WHISH_MERCHANT_RECIPIENT` to the platform merchant phone/account shown to businesses at checkout. `WHISH_PAY_API_URL` and `WHISH_PAY_API_KEY` are reserved for the official Whish Pay merchant API after onboarding; do not guess or hardcode undocumented endpoints. Manual transfers remain pending until a platform admin verifies the submitted transaction reference.
 
 
-## WhatsApp booking alerts
-Every confirmed online booking sends a WhatsApp message to the number the business saves under **Bookings → WhatsApp alerts**. Delivery uses the official WhatsApp Cloud API (Meta) and runs after the booking commits, so an outage never blocks a booking.
-
-1. In Meta Business Manager, create a WhatsApp Business app and register the sending phone number. Put its phone-number ID and a permanent system-user access token in `WHATSAPP_CLOUD_PHONE_NUMBER_ID` / `WHATSAPP_CLOUD_ACCESS_TOKEN`.
-2. Create and get approval for a **Utility** message template (business-initiated messages must use a template) with exactly five body variables, for example:
-   `New booking: {{1}} booked {{2}} with {{3}} on {{4}}. Patient phone: {{5}}`
-   Variables are: customer name, service, staff/doctor, local date/time, customer phone.
-3. Set `WHATSAPP_BOOKING_TEMPLATE` to the template name and `WHATSAPP_BOOKING_TEMPLATE_LANG` to its language code (e.g. `en`, `ar`).
-4. The business owner enters their number (local Lebanese format such as `03 123 456` is normalized to `+9613123456`).
+## WhatsApp booking messages
+No WhatsApp API or Meta Business account is used. After a booking is saved, the customer's own WhatsApp opens (wa.me click-to-chat) on the business number with the booking details pre-filled, and the customer presses Send. The number comes from **Bookings → WhatsApp alerts** (falls back to the business WhatsApp in settings); local Lebanese formats such as `03 123 456` are normalized to `9613123456`. The booking is stored and the slot is locked whether or not the customer sends the message.

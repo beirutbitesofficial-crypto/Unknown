@@ -5,7 +5,6 @@ import { BookingAlertSettings } from "@/components/shared/booking-alert-settings
 import { BookingSetup } from "@/components/shared/booking-setup";
 import { getLocale } from "@/i18n/server";
 import { getEntitlements } from "@/server/billing/entitlements";
-import { isWhatsappConfigured } from "@/server/notifications/whatsapp";
 import { PERMISSIONS } from "@/server/rbac/permissions";
 import { bookingAlertNumber } from "@/server/services/booking";
 import { requireBusinessContext } from "@/server/tenancy/context";
@@ -26,7 +25,7 @@ export default async function BookingsPage() {
   }});
   return <div className="mx-auto max-w-7xl space-y-6"><PageHeader title={ar ? "الحجوزات" : "Bookings"} description={ar ? "إدارة الأطباء، الحلاقين، الموظفين والخدمات القابلة للحجز." : "Manage bookable staff, services and appointments."} action={data.website?.status === "PUBLISHED" ? <Link className="text-sm font-bold underline" href={`/b/${data.website.slug}/book`} target="_blank">{ar ? "فتح صفحة الحجز" : "Open booking page"}</Link> : undefined} />
     <Card><CardHeader><CardTitle>{ar ? "إعداد الحجز" : "Booking setup"}</CardTitle></CardHeader><CardContent><BookingSetup resources={data.resources.map(({ id, name }) => ({ id, name }))} services={data.services} ar={ar} /></CardContent></Card>
-    <Card><CardHeader><CardTitle>{ar ? "تنبيهات واتساب" : "WhatsApp alerts"}</CardTitle></CardHeader><CardContent><BookingAlertSettings initialNumber={data.alertNumber} providerReady={isWhatsappConfigured()} ar={ar} /></CardContent></Card>
+    <Card><CardHeader><CardTitle>{ar ? "تنبيهات واتساب" : "WhatsApp alerts"}</CardTitle></CardHeader><CardContent><BookingAlertSettings initialNumber={data.alertNumber} ar={ar} /></CardContent></Card>
     <div className="grid gap-4 lg:grid-cols-[1fr_2fr]"><Card><CardHeader><CardTitle>{ar ? "الفريق" : "Resources"}</CardTitle></CardHeader><CardContent className="space-y-3">{data.resources.length ? data.resources.map((r) => <div key={r.id} className="rounded-xl border border-slate-100 p-3"><p className="font-semibold">{r.name}</p><p className="text-xs text-slate-500">{r.title ?? "—"}</p><p className="mt-2 text-xs text-slate-500">{r.services.map((s) => s.product.name).join(" · ") || (ar ? "لا خدمات مربوطة" : "No services attached")}</p></div>) : <p className="text-sm text-slate-500">{ar ? "أضف أول شخص قابل للحجز." : "Add your first bookable resource."}</p>}</CardContent></Card>
     <Card><CardHeader><CardTitle>{ar ? "المواعيد" : "Appointments"}</CardTitle></CardHeader><CardContent className="space-y-3">{data.bookings.length ? data.bookings.map((b) => <div key={b.id} className="flex flex-col gap-1 rounded-xl border border-slate-100 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{b.customerName} · {b.product.name}</p><p className="text-xs text-slate-500">{b.resource.name} · {b.customerPhone}</p></div><div className="text-start sm:text-end"><p className="text-sm font-medium">{new Intl.DateTimeFormat(ar ? "ar-LB" : "en-LB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Beirut" }).format(b.startAt)}</p><p className="text-xs text-slate-500">{b.status}</p></div></div>) : <p className="text-sm text-slate-500">{ar ? "ما في حجوزات بعد." : "No bookings yet."}</p>}</CardContent></Card></div>
   </div>;
