@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { DateTime } from "luxon";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { bookingConflicts, localRangeForBooking } from "@/server/services/booking";
+import { sendBookingWhatsappAlert } from "@/server/notifications/whatsapp";
+import { bookingAlertNumber, bookingConflicts, isBookingCollision, localRangeForBooking } from "@/server/services/booking";
 import { withPublicTenantTransaction } from "@/server/tenancy/public";
 
 const schema = z.object({ serviceId: z.string().cuid(), resourceId: z.string().cuid(), startAt: z.string().datetime(), customerName: z.string().trim().min(2).max(100), customerPhone: z.string().trim().min(6).max(30), whatsapp: z.string().trim().max(30).optional(), email: z.string().email().max(200).optional(), notes: z.string().trim().max(800).optional() });
@@ -13,7 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     const result = await withPublicTenantTransaction({ businessId: website.businessId, serializable: true, fn: async (tx) => {
       const [addon, settings, mapping] = await Promise.all([
         tx.businessAddon.findFirst({ where: { businessId: website.businessId, status: { in: ["ACTIVE", "TRIALING", "GRACE_PERIOD"] }, addonPlan: { featureCode: "onlineBooking" } }, select: { id: true } }),
-        tx.businessSettings.findUnique({ where: { businessId: website.businessId }, select: { timezone: true } }),
+        tx.businessSettings.findUnique({ where: { businessId: website.businessId }, select: { timezone: true, notificationSettings: true } }),
         tx.bookingResourceService.findFirst({ where: { businessId: website.businessId, resourceId: parsed.data.resourceId, productId: parsed.data.serviceId, resource: { isActive: true }, product: { isActive: true, isPublishedOnline: true, deletedAt: null } }, include: { resource: true, product: true } })
       ]);
       if (!addon) throw new Error("BOOKING_NOT_ENABLED"); if (!settings || !mapping) throw new Error("SERVICE_NOT_AVAILABLE");
@@ -26,8 +27,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       const price = mapping.priceOverride ?? mapping.product.sellingPrice; const currency = mapping.currency ?? mapping.product.currency;
       const booking = await tx.booking.create({ data: { businessId: website.businessId, websiteId: website.id, customerId: customer.id, resourceId: mapping.resourceId, productId: mapping.productId, status: "CONFIRMED", startAt: start.toJSDate(), endAt: end, customerName: parsed.data.customerName, customerPhone: parsed.data.customerPhone, whatsapp: parsed.data.whatsapp, email: parsed.data.email, notes: parsed.data.notes, price, currency } });
       await tx.notification.create({ data: { businessId: website.businessId, type: "SYSTEM", title: "New online booking", body: `${parsed.data.customerName} booked ${mapping.product.name}.`, data: { bookingId: booking.id } } });
-      return { bookingId: booking.id, bookingCode: booking.id.slice(-8).toUpperCase() };
+      const alertTo = bookingAlertNumber(settings.notificationSettings);
+      return { bookingId: booking.id, bookingCode: booking.id.slice(-8).toUpperCase(), alert: alertTo ? { to: alertTo, customerName: booking.customerName, serviceName: mapping.product.name, resourceName: mapping.resource.name, startAt: booking.startAt, timezone: settings.timezone, customerPhone: booking.customerPhone } : null };
     }});
-    return NextResponse.json(result, { status: 201 });
-  } catch (error) { return NextResponse.json({ error: "BOOKING_FAILED", message: error instanceof Error ? error.message : "Unable to create booking" }, { status: 400 }); }
+    const { alert, ...body } = result;
+    // Sent after commit so a WhatsApp outage never blocks or rolls back a confirmed booking.
+    if (alert) after(() => sendBookingWhatsappAlert(alert).catch((error) => console.error("booking whatsapp alert failed", { bookingId: body.bookingId, error })));
+    return NextResponse.json(body, { status: 201 });
+  } catch (error) { if (isBookingCollision(error)) return NextResponse.json({ error: "BOOKING_FAILED", message: "TIME_NO_LONGER_AVAILABLE" }, { status: 409 }); return NextResponse.json({ error: "BOOKING_FAILED", message: error instanceof Error ? error.message : "Unable to create booking" }, { status: 400 }); }
 }

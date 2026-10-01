@@ -43,6 +43,8 @@
 - Public availability endpoint with timezone-aware slots and overlap protection.
 - Public booking page and confirmed appointment creation.
 - Booking workspace showing resources and appointments.
+- WhatsApp Cloud API alert to the business's chosen number on every new booking (sent after commit; skipped until platform credentials/template are configured).
+- Database exclusion constraint (`prisma/booking-constraints.sql`) preventing overlapping active bookings per resource; lost races return HTTP 409 and the public form asks for another time.
 
 ### Production vertical slice already implemented
 - New Sale form and API.
