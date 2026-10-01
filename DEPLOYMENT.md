@@ -14,7 +14,7 @@
 3. Generate Prisma Client: `npm run db:generate`.
 4. Create the initial Prisma migration: `npm run db:migrate -- --name init`.
 5. Seed permissions and plans: `npm run db:seed`.
-6. Apply `prisma/rls.sql` with the migration/owner connection after the tables exist.
+6. Apply `prisma/rls.sql` and then `prisma/booking-constraints.sql` with the migration/owner connection after the tables exist. The second file installs `btree_gist` and the `booking_no_overlap` exclusion constraint, so a doctor/staff member can never be double-booked even under concurrent requests.
 7. Ensure `DATABASE_URL` uses the restricted runtime PostgreSQL role.
 8. Run `npm run typecheck`, `npm run lint`, and `npm run build`.
 9. Run acceptance/E2E tests before production traffic.
@@ -30,3 +30,7 @@
 
 ## Whish add-on billing
 For the implemented manual Whish transfer flow, set `WHISH_MERCHANT_RECIPIENT` to the platform merchant phone/account shown to businesses at checkout. `WHISH_PAY_API_URL` and `WHISH_PAY_API_KEY` are reserved for the official Whish Pay merchant API after onboarding; do not guess or hardcode undocumented endpoints. Manual transfers remain pending until a platform admin verifies the submitted transaction reference.
+
+
+## WhatsApp booking messages
+No WhatsApp API or Meta Business account is used. After a booking is saved, the customer's own WhatsApp opens (wa.me click-to-chat) on the business number with the booking details pre-filled, and the customer presses Send. The number comes from **Bookings → WhatsApp alerts** (falls back to the business WhatsApp in settings); local Lebanese formats such as `03 123 456` are normalized to `9613123456`. The booking is stored and the slot is locked whether or not the customer sends the message.

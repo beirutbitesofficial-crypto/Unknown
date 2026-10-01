@@ -36,3 +36,19 @@ export async function bookingConflicts(tx: Prisma.TransactionClient, input: { bu
   ]);
   return Boolean(booking || block);
 }
+
+/** Owner-chosen WhatsApp number that receives new-booking alerts (BusinessSettings.notificationSettings.bookingWhatsapp). */
+export function bookingAlertNumber(notificationSettings: Prisma.JsonValue | null | undefined) {
+  if (!notificationSettings || typeof notificationSettings !== "object" || Array.isArray(notificationSettings)) return null;
+  const value = (notificationSettings as Record<string, unknown>).bookingWhatsapp;
+  return typeof value === "string" && value ? value : null;
+}
+
+/** True when the database rejected a booking because another one won the same slot (exclusion constraint or serialization failure). */
+export function isBookingCollision(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: unknown }).code;
+  if (code === "P2034" || code === "23P01" || code === "40001") return true;
+  const message = error instanceof Error ? error.message : "";
+  return /booking_no_overlap|23P01|40001|could not serialize/i.test(message);
+}

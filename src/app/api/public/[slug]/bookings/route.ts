@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { DateTime } from "luxon";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { bookingConflicts, localRangeForBooking } from "@/server/services/booking";
+import { bookingWhatsappLink, normalizeWhatsappNumber } from "@/server/notifications/whatsapp";
+import { bookingAlertNumber, bookingConflicts, isBookingCollision, localRangeForBooking } from "@/server/services/booking";
 import { withPublicTenantTransaction } from "@/server/tenancy/public";
 
 const schema = z.object({ serviceId: z.string().cuid(), resourceId: z.string().cuid(), startAt: z.string().datetime(), customerName: z.string().trim().min(2).max(100), customerPhone: z.string().trim().min(6).max(30), whatsapp: z.string().trim().max(30).optional(), email: z.string().email().max(200).optional(), notes: z.string().trim().max(800).optional() });
@@ -11,10 +12,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     const { slug } = await params; const parsed = schema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: "INVALID_INPUT", issues: parsed.error.issues }, { status: 422 });
     const website = await prisma.businessWebsite.findUnique({ where: { slug }, select: { id: true, businessId: true, status: true } }); if (!website || website.status !== "PUBLISHED") return NextResponse.json({ error: "SITE_NOT_FOUND" }, { status: 404 });
     const result = await withPublicTenantTransaction({ businessId: website.businessId, serializable: true, fn: async (tx) => {
-      const [addon, settings, mapping] = await Promise.all([
+      const [addon, settings, mapping, business] = await Promise.all([
         tx.businessAddon.findFirst({ where: { businessId: website.businessId, status: { in: ["ACTIVE", "TRIALING", "GRACE_PERIOD"] }, addonPlan: { featureCode: "onlineBooking" } }, select: { id: true } }),
-        tx.businessSettings.findUnique({ where: { businessId: website.businessId }, select: { timezone: true } }),
-        tx.bookingResourceService.findFirst({ where: { businessId: website.businessId, resourceId: parsed.data.resourceId, productId: parsed.data.serviceId, resource: { isActive: true }, product: { isActive: true, isPublishedOnline: true, deletedAt: null } }, include: { resource: true, product: true } })
+        tx.businessSettings.findUnique({ where: { businessId: website.businessId }, select: { timezone: true, whatsapp: true, notificationSettings: true } }),
+        tx.bookingResourceService.findFirst({ where: { businessId: website.businessId, resourceId: parsed.data.resourceId, productId: parsed.data.serviceId, resource: { isActive: true }, product: { isActive: true, isPublishedOnline: true, deletedAt: null } }, include: { resource: true, product: true } }),
+        tx.business.findUniqueOrThrow({ where: { id: website.businessId }, select: { name: true } })
       ]);
       if (!addon) throw new Error("BOOKING_NOT_ENABLED"); if (!settings || !mapping) throw new Error("SERVICE_NOT_AVAILABLE");
       const start = DateTime.fromISO(parsed.data.startAt, { setZone: true }).toUTC(); if (!start.isValid || start <= DateTime.utc()) throw new Error("INVALID_START_TIME");
@@ -26,8 +28,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       const price = mapping.priceOverride ?? mapping.product.sellingPrice; const currency = mapping.currency ?? mapping.product.currency;
       const booking = await tx.booking.create({ data: { businessId: website.businessId, websiteId: website.id, customerId: customer.id, resourceId: mapping.resourceId, productId: mapping.productId, status: "CONFIRMED", startAt: start.toJSDate(), endAt: end, customerName: parsed.data.customerName, customerPhone: parsed.data.customerPhone, whatsapp: parsed.data.whatsapp, email: parsed.data.email, notes: parsed.data.notes, price, currency } });
       await tx.notification.create({ data: { businessId: website.businessId, type: "SYSTEM", title: "New online booking", body: `${parsed.data.customerName} booked ${mapping.product.name}.`, data: { bookingId: booking.id } } });
-      return { bookingId: booking.id, bookingCode: booking.id.slice(-8).toUpperCase() };
+      const bookingCode = booking.id.slice(-8).toUpperCase();
+      // The customer's own WhatsApp opens on the business number with the details pre-filled; they press Send.
+      const whatsappTo = bookingAlertNumber(settings.notificationSettings) ?? (settings.whatsapp ? normalizeWhatsappNumber(settings.whatsapp) : null);
+      const whatsappUrl = whatsappTo ? bookingWhatsappLink({ to: whatsappTo, businessName: business.name, customerName: booking.customerName, serviceName: mapping.product.name, resourceName: mapping.resource.name, startAt: booking.startAt, timezone: settings.timezone, bookingCode, notes: booking.notes }) : null;
+      return { bookingId: booking.id, bookingCode, whatsappUrl };
     }});
     return NextResponse.json(result, { status: 201 });
-  } catch (error) { return NextResponse.json({ error: "BOOKING_FAILED", message: error instanceof Error ? error.message : "Unable to create booking" }, { status: 400 }); }
+  } catch (error) { if (isBookingCollision(error)) return NextResponse.json({ error: "BOOKING_FAILED", message: "TIME_NO_LONGER_AVAILABLE" }, { status: 409 }); return NextResponse.json({ error: "BOOKING_FAILED", message: error instanceof Error ? error.message : "Unable to create booking" }, { status: 400 }); }
 }

@@ -28,7 +28,7 @@ The remaining CRUD/reporting/admin/payment-provider screens are intentionally tr
 4. Generate client: `npm run db:generate`.
 5. Create migration: `npm run db:migrate -- --name init`.
 6. Seed global permissions, the $10 core plan and add-ons: `npm run db:seed`.
-7. Apply `prisma/rls.sql` with the migration/table-owner database role.
+7. Apply `prisma/rls.sql`, then `prisma/booking-constraints.sql`, with the migration/table-owner database role.
 8. Run the application with the non-owner runtime `DATABASE_URL`: `npm run dev`.
 
 For production, use `MIGRATION_DATABASE_URL` for schema migrations and a separate restricted `DATABASE_URL` for the web app.
